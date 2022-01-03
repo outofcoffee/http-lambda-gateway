@@ -21,6 +21,14 @@ func GetPort() string {
 	return port
 }
 
+func GetRegion() string {
+	region, success := os.LookupEnv("AWS_REGION")
+	if !success {
+		region = "eu-west-1"
+	}
+	return region
+}
+
 func GetRequestIdHeader() string {
 	return os.Getenv("REQUEST_ID_HEADER")
 }

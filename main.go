@@ -16,13 +16,18 @@ import (
 	"strings"
 )
 
+var (
+	region          = config.GetRegion()
+	requestIdHeader = config.GetRequestIdHeader()
+)
+
 func main() {
 	logrus.SetLevel(config.GetConfigLevel())
-	port := config.GetPort()
 
 	http.HandleFunc("/", handler)
 
-	logrus.Infof("starting http lambda gateway on port %v", port)
+	port := config.GetPort()
+	logrus.Infof("starting http lambda gateway for region %v on port %v", region, port)
 	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
@@ -30,8 +35,6 @@ func main() {
 }
 
 func handler(w http.ResponseWriter, req *http.Request) {
-	requestIdHeader := config.GetRequestIdHeader()
-
 	log := logrus.WithField("requestId", getRequestId(requestIdHeader, req))
 
 	client := req.RemoteAddr
@@ -100,7 +103,7 @@ func invoke(
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 
-	client := lambda.New(sess, &aws.Config{Region: aws.String("eu-west-1")})
+	client := lambda.New(sess, &aws.Config{Region: aws.String(region)})
 
 	encodedBody := b64.StdEncoding.EncodeToString(requestBody)
 	request := events.APIGatewayProxyRequest{
