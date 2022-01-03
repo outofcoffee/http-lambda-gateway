@@ -10,16 +10,17 @@ import (
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	"httplambda/config"
+	"httplambdagw/config"
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 )
 
 var (
 	region          = config.GetRegion()
 	requestIdHeader = config.GetRequestIdHeader()
-	version         string
+	version         = "dev"
 )
 
 func main() {
@@ -44,18 +45,22 @@ func handler(w http.ResponseWriter, req *http.Request) {
 	functionName, path, requestHeaders, requestBody, err := parseRequest(req)
 	if err != nil {
 		log.Error(err)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	code, body, responseHeaders, err := invoke(log, functionName, req.Method, path, requestHeaders, requestBody)
 	if err != nil {
 		log.Error(err)
+		w.WriteHeader(http.StatusBadGateway)
 		return
 	}
 
 	err = sendResponse(log, w, responseHeaders, code, body, client)
 	if err != nil {
 		log.Error(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	log.Infof("proxied request to %v [code: %v, body %v bytes] for client %v", functionName, code, len(body), client)
@@ -74,8 +79,17 @@ func getRequestId(headerName string, req *http.Request) string {
 
 func parseRequest(req *http.Request) (string, string, map[string]string, []byte, error) {
 	splitPath := strings.SplitN(strings.TrimPrefix(req.URL.Path, "/"), "/", 2)
-	functionName := splitPath[0]
-	path := "/" + splitPath[1]
+
+	var functionName string
+	path := "/"
+	if len(splitPath) >= 1 && splitPath[0] != "" {
+		functionName = splitPath[0]
+		if len(splitPath) >= 2 {
+			path = "/" + splitPath[1]
+		}
+	} else {
+		return "", "", nil, nil, fmt.Errorf("path must include function name and request path")
+	}
 
 	requestHeaders := make(map[string]string)
 	for requestHeaderKey, requestHeaderValue := range req.Header {

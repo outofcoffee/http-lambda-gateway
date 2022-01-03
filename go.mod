@@ -1,4 +1,4 @@
-module httplambda
+module httplambdagw
 
 go 1.17
 
