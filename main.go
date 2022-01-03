@@ -19,6 +19,7 @@ import (
 var (
 	region          = config.GetRegion()
 	requestIdHeader = config.GetRequestIdHeader()
+	version         string
 )
 
 func main() {
@@ -27,7 +28,7 @@ func main() {
 	http.HandleFunc("/", handler)
 
 	port := config.GetPort()
-	logrus.Infof("starting http lambda gateway for region %v on port %v", region, port)
+	logrus.Infof("starting http lambda gateway %v for region %v on port %v", version, region, port)
 	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		panic(err)
