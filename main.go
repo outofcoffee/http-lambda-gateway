@@ -37,6 +37,7 @@ func main() {
 }
 
 func handler(w http.ResponseWriter, req *http.Request) {
+	startTime := time.Now()
 	log := logrus.WithField("requestId", getRequestId(requestIdHeader, req))
 
 	client := req.RemoteAddr
@@ -63,7 +64,8 @@ func handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	log.Infof("proxied request to %v [code: %v, body %v bytes] for client %v", functionName, code, len(body), client)
+	elapsed := time.Since(startTime)
+	log.Infof("proxied request to %v [code: %v, body %v bytes] for client %v in %v", functionName, code, len(body), client, elapsed)
 }
 
 func getRequestId(headerName string, req *http.Request) string {
