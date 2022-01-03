@@ -1,4 +1,4 @@
-project_name: httplambdagw
+project_name: lambdahttpgw
 before:
   hooks:
     # You may remove this if you don't use go modules.
@@ -40,7 +40,7 @@ brews:
   -
     # Name template of the recipe
     # Default to project name
-    name: httplambdagw
+    name: lambdahttpgw
 
     # GOARM to specify which 32-bit arm version to use if there are multiple versions
     # from the build section. Brew formulas support atm only one 32-bit version.
