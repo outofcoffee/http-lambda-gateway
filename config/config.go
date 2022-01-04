@@ -14,16 +14,16 @@ func GetConfigLevel() logrus.Level {
 }
 
 func GetPort() string {
-	port, success := os.LookupEnv("PORT")
-	if !success {
+	port := os.Getenv("PORT")
+	if port == "" {
 		port = "8090"
 	}
 	return port
 }
 
 func GetRegion() string {
-	region, success := os.LookupEnv("AWS_REGION")
-	if !success {
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
 		region = "eu-west-1"
 	}
 	return region
