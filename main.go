@@ -26,6 +26,7 @@ var (
 func main() {
 	logrus.SetLevel(config.GetConfigLevel())
 
+	http.HandleFunc("/system/status", statusHandler)
 	http.HandleFunc("/", handler)
 
 	port := config.GetPort()
@@ -34,6 +35,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func statusHandler(w http.ResponseWriter, req *http.Request) {
+	_, _ = w.Write([]byte("ok\n"))
 }
 
 func handler(w http.ResponseWriter, req *http.Request) {
