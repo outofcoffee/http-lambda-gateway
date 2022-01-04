@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"lambdahttpgw/config"
+	"lambdahttpgw/stats"
 	"net/http"
 	"strings"
 	"time"
@@ -26,6 +27,13 @@ var (
 func main() {
 	logrus.SetLevel(config.GetConfigLevel())
 
+	if config.StatsReporterEnabled {
+		stats.Enable()
+	} else {
+		logrus.Debugf("stats reporting is disabled")
+	}
+
+	http.HandleFunc("/system/stats", statsHandler)
 	http.HandleFunc("/system/status", statusHandler)
 	http.HandleFunc("/", handler)
 
@@ -38,7 +46,18 @@ func main() {
 }
 
 func statusHandler(w http.ResponseWriter, req *http.Request) {
-	_, _ = w.Write([]byte("ok\n"))
+	_, _ = fmt.Fprintf(w, "ok\n")
+}
+
+func statsHandler(w http.ResponseWriter, req *http.Request) {
+	logrus.Debugf("fetching stats")
+	statsJson, err := json.Marshal(stats.GetAllStats())
+	if err != nil {
+		logrus.Errorf("error marshalling stats to JSON: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, _ = fmt.Fprintf(w, "%s\n", statsJson)
 }
 
 func handler(w http.ResponseWriter, req *http.Request) {
@@ -71,6 +90,7 @@ func handler(w http.ResponseWriter, req *http.Request) {
 
 	elapsed := time.Since(startTime)
 	log.Infof("proxied request to %v [code: %v, body %v bytes] for client %v in %v", functionName, code, len(body), client, elapsed)
+	stats.RecordHit(functionName)
 }
 
 func getRequestId(headerName string, req *http.Request) string {

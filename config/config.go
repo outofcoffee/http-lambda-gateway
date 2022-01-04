@@ -3,6 +3,11 @@ package config
 import (
 	"github.com/sirupsen/logrus"
 	"os"
+	"time"
+)
+
+var (
+	StatsReporterEnabled = isStatsReporterEnabled()
 )
 
 func GetConfigLevel() logrus.Level {
@@ -31,4 +36,23 @@ func GetRegion() string {
 
 func GetRequestIdHeader() string {
 	return os.Getenv("REQUEST_ID_HEADER")
+}
+
+func GetStatsUrl() string {
+	return os.Getenv("STATS_REPORT_URL")
+}
+
+func GetStatsInterval() time.Duration {
+	var seconds time.Duration
+	interval := os.Getenv("STATS_REPORT_INTERVAL")
+	if interval == "" {
+		seconds = 5 * time.Second
+	} else {
+		seconds, _ = time.ParseDuration(interval)
+	}
+	return seconds
+}
+
+func isStatsReporterEnabled() bool {
+	return GetStatsUrl() != ""
 }
