@@ -17,7 +17,10 @@ var (
 // enableRecorder starts a goroutine that ensures single concurrency
 // when mutating functionStats.
 func enableRecorder() {
-	hitCh = make(chan string)
+	logrus.Debugf("enabling stats recorder")
+
+	// buffer to reduce likelihood of blocking caller
+	hitCh = make(chan string, 100)
 	go func() {
 		for true {
 			functionName := <-hitCh
