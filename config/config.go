@@ -7,6 +7,7 @@ import (
 )
 
 var (
+	StatsRecorderEnabled = isStatsRecorderEnabled()
 	StatsReporterEnabled = isStatsReporterEnabled()
 	StatsUrl             = getStatsUrl()
 )
@@ -37,6 +38,10 @@ func GetRegion() string {
 
 func GetRequestIdHeader() string {
 	return os.Getenv("REQUEST_ID_HEADER")
+}
+
+func isStatsRecorderEnabled() bool {
+	return os.Getenv("STATS_RECORDER") == "true" || isStatsReporterEnabled()
 }
 
 func getStatsUrl() string {

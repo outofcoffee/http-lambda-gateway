@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"github.com/sirupsen/logrus"
 	"lambdahttpgw/config"
 )
 
@@ -30,9 +31,6 @@ func enableRecorder() {
 }
 
 func record(functionName string) {
-	if !config.StatsReporterEnabled {
-		return
-	}
 	holder, exist := functionStats[functionName]
 	if !exist {
 		holder = &statsHolder{
@@ -45,6 +43,9 @@ func record(functionName string) {
 }
 
 func RecordHit(functionName string) {
+	if !config.StatsRecorderEnabled {
+		return
+	}
 	hitCh <- functionName
 }
 

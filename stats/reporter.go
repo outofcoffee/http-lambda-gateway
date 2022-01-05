@@ -9,9 +9,7 @@ import (
 	"time"
 )
 
-func Enable() chan bool {
-	enableRecorder()
-
+func enableReporter() chan bool {
 	logrus.Debugf("enabling stats reporter to %s", config.StatsUrl)
 
 	done := make(chan bool)

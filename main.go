@@ -26,12 +26,7 @@ var (
 
 func main() {
 	logrus.SetLevel(config.GetConfigLevel())
-
-	if config.StatsReporterEnabled {
-		stats.Enable()
-	} else {
-		logrus.Debugf("stats reporting is disabled")
-	}
+	stats.Init()
 
 	http.HandleFunc("/system/stats", statsHandler)
 	http.HandleFunc("/system/status", statusHandler)
