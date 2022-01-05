@@ -7,9 +7,9 @@ import (
 )
 
 var (
+	StatsUrl             = getStatsUrl()
 	StatsRecorderEnabled = isStatsRecorderEnabled()
 	StatsReporterEnabled = isStatsReporterEnabled()
-	StatsUrl             = getStatsUrl()
 )
 
 func GetConfigLevel() logrus.Level {
@@ -60,5 +60,6 @@ func GetStatsInterval() time.Duration {
 }
 
 func isStatsReporterEnabled() bool {
-	return StatsUrl != ""
+	// note: don't use the cached var
+	return getStatsUrl() != ""
 }
