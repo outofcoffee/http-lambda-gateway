@@ -10,12 +10,12 @@ type statsHolder struct {
 }
 
 var (
-	hits  = map[string]*statsHolder{}
-	hitCh chan string
+	functionStats = map[string]*statsHolder{}
+	hitCh         chan string
 )
 
 // enableRecorder starts a goroutine that ensures single concurrency
-// when writing to hits.
+// when mutating functionStats.
 func enableRecorder() {
 	hitCh = make(chan string)
 	go func() {
@@ -30,13 +30,13 @@ func record(functionName string) {
 	if !config.StatsReporterEnabled {
 		return
 	}
-	holder, exist := hits[functionName]
+	holder, exist := functionStats[functionName]
 	if !exist {
 		holder = &statsHolder{
 			Hits:       0,
 			LastReport: 0,
 		}
-		hits[functionName] = holder
+		functionStats[functionName] = holder
 	}
 	holder.Hits++
 }
@@ -46,5 +46,5 @@ func RecordHit(functionName string) {
 }
 
 func GetAllStats() map[string]*statsHolder {
-	return hits
+	return functionStats
 }

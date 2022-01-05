@@ -8,6 +8,7 @@ import (
 
 var (
 	StatsReporterEnabled = isStatsReporterEnabled()
+	StatsUrl             = getStatsUrl()
 )
 
 func GetConfigLevel() logrus.Level {
@@ -38,7 +39,7 @@ func GetRequestIdHeader() string {
 	return os.Getenv("REQUEST_ID_HEADER")
 }
 
-func GetStatsUrl() string {
+func getStatsUrl() string {
 	return os.Getenv("STATS_REPORT_URL")
 }
 
@@ -54,5 +55,5 @@ func GetStatsInterval() time.Duration {
 }
 
 func isStatsReporterEnabled() bool {
-	return GetStatsUrl() != ""
+	return StatsUrl != ""
 }

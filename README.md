@@ -34,12 +34,14 @@ The Lambda function receives events in the standard AWS API Gateway JSON format,
 
 Environment variables:
 
-| Variable          | Meaning                                                                                  | Default     | Example            |
-|-------------------|------------------------------------------------------------------------------------------|-------------|--------------------|
-| AWS_REGION        | AWS region in which to connect to Lambda functions.                                      | `eu-west-1` | `us-east-1`        |
-| LOG_LEVEL         | Log level (trace, debug, info, warn, error).                                             | `debug`     | `warn`             |
-| PORT              | Port on which to listen.                                                                 | `8090`      | `8080`             |
-| REQUEST_ID_HEADER | Name of request header to use as request ID for logging. If absent, a UUID will be used. | Empty       | `x-correlation-id` |
+| Variable              | Meaning                                                                                        | Default     | Example               |
+|-----------------------|------------------------------------------------------------------------------------------------|-------------|-----------------------|
+| AWS_REGION            | AWS region in which to connect to Lambda functions.                                            | `eu-west-1` | `us-east-1`           |
+| LOG_LEVEL             | Log level (trace, debug, info, warn, error).                                                   | `debug`     | `warn`                |
+| PORT                  | Port on which to listen.                                                                       | `8090`      | `8080`                |
+| REQUEST_ID_HEADER     | Name of request header to use as request ID for logging. If absent, a UUID will be used.       | Empty       | `x-correlation-id`    |
+| STATS_REPORT_INTERVAL | The frequency with which stats should be reported, if enabled.                                 | `5s`        | `2m`                  |
+| STATS_REPORT_URL      | URL to which stats should be reported. If not empty, hits are recorded for each function name. | Empty       | `https://example.com` |
 
 ## Build
 
