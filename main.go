@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"lambdahttpgw/config"
@@ -28,7 +29,7 @@ func main() {
 	logrus.SetLevel(config.GetConfigLevel())
 	stats.Init()
 
-	http.HandleFunc("/system/stats", statsHandler)
+	http.Handle("/system/metrics", promhttp.Handler())
 	http.HandleFunc("/system/status", statusHandler)
 	http.HandleFunc("/", handler)
 
@@ -40,23 +41,14 @@ func main() {
 	}
 }
 
-func statusHandler(w http.ResponseWriter, req *http.Request) {
+func statusHandler(w http.ResponseWriter, _ *http.Request) {
 	_, _ = fmt.Fprintf(w, "ok\n")
-}
-
-func statsHandler(w http.ResponseWriter, req *http.Request) {
-	logrus.Debugf("fetching stats")
-	statsJson, err := json.Marshal(stats.GetAllStats())
-	if err != nil {
-		logrus.Errorf("error marshalling stats to JSON: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	_, _ = fmt.Fprintf(w, "%s\n", statsJson)
 }
 
 func handler(w http.ResponseWriter, req *http.Request) {
 	startTime := time.Now()
+	stats.IncActiveRequests()
+	defer stats.DecActiveRequests()
 	log := logrus.WithField("requestId", getRequestId(requestIdHeader, req))
 
 	client := req.RemoteAddr
@@ -69,14 +61,14 @@ func handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	code, body, responseHeaders, err := invoke(log, functionName, req.Method, path, requestHeaders, requestBody)
+	code, responseBody, responseHeaders, err := invoke(log, functionName, req.Method, path, requestHeaders, requestBody)
 	if err != nil {
 		log.Error(err)
 		w.WriteHeader(http.StatusBadGateway)
 		return
 	}
 
-	err = sendResponse(log, w, responseHeaders, code, body, client)
+	err = sendResponse(log, w, responseHeaders, code, responseBody, client)
 	if err != nil {
 		log.Error(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -84,8 +76,11 @@ func handler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	elapsed := time.Since(startTime)
-	log.Infof("proxied request to %v [code: %v, body %v bytes] for client %v in %v", functionName, code, len(body), client, elapsed)
-	stats.RecordHit(functionName)
+	log.Infof("proxied request to %v [code: %v, body %v bytes] for client %v in %v", functionName, code, len(*responseBody), client, elapsed)
+	stats.RecordHit(stats.Invocation{
+		FunctionName: functionName,
+		Duration:     elapsed,
+	})
 }
 
 func getRequestId(headerName string, req *http.Request) string {
@@ -99,11 +94,10 @@ func getRequestId(headerName string, req *http.Request) string {
 	return requestId
 }
 
-func parseRequest(req *http.Request) (string, string, map[string]string, []byte, error) {
+func parseRequest(req *http.Request) (functionName string, path string, headers *map[string]string, body *[]byte, err error) {
 	splitPath := strings.SplitN(strings.TrimPrefix(req.URL.Path, "/"), "/", 2)
 
-	var functionName string
-	path := "/"
+	path = "/"
 	if len(splitPath) >= 1 && splitPath[0] != "" {
 		functionName = splitPath[0]
 		if len(splitPath) >= 2 {
@@ -120,9 +114,9 @@ func parseRequest(req *http.Request) (string, string, map[string]string, []byte,
 
 	requestBody, err := ioutil.ReadAll(req.Body)
 	if err != nil {
-		return "", "", map[string]string{}, nil, fmt.Errorf("error parsing request body: %v", err)
+		return "", "", nil, nil, fmt.Errorf("error parsing request body: %v", err)
 	}
-	return functionName, path, requestHeaders, requestBody, err
+	return functionName, path, &requestHeaders, &requestBody, err
 }
 
 func invoke(
@@ -130,10 +124,10 @@ func invoke(
 	functionName string,
 	httpMethod string,
 	path string,
-	requestHeaders map[string]string,
-	requestBody []byte,
-) (statusCode int, body []byte, responseHeaders map[string]string, err error) {
-	log.Debugf("invoking function %v with %v %v [body: %v bytes]", functionName, httpMethod, path, len(requestBody))
+	requestHeaders *map[string]string,
+	requestBody *[]byte,
+) (statusCode int, responseBody *[]byte, responseHeaders *map[string]string, err error) {
+	log.Debugf("invoking function %v with %v %v [body: %v bytes]", functionName, httpMethod, path, len(*requestBody))
 
 	// Create Lambda service client
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
@@ -142,11 +136,11 @@ func invoke(
 
 	client := lambda.New(sess, &aws.Config{Region: aws.String(region)})
 
-	encodedBody := b64.StdEncoding.EncodeToString(requestBody)
+	encodedBody := b64.StdEncoding.EncodeToString(*requestBody)
 	request := events.APIGatewayProxyRequest{
 		HTTPMethod:      httpMethod,
 		Path:            path,
-		Headers:         requestHeaders,
+		Headers:         *requestHeaders,
 		Body:            encodedBody,
 		IsBase64Encoded: true,
 	}
@@ -164,34 +158,35 @@ func invoke(
 	var resp events.APIGatewayProxyResponse
 
 	err = json.Unmarshal(result.Payload, &resp)
-	if err != nil || resp.StatusCode == 0 {
-		return 0, nil, nil, fmt.Errorf("error unmarshalling response: %v", err)
+	statusCode = resp.StatusCode
+	if err != nil || statusCode == 0 {
+		return statusCode, nil, nil, fmt.Errorf("error unmarshalling response: %v", err)
 	}
 
-	var responseBody []byte
+	var respBody []byte
 	if resp.IsBase64Encoded {
-		responseBody, err = b64.StdEncoding.DecodeString(resp.Body)
+		respBody, err = b64.StdEncoding.DecodeString(resp.Body)
 		if err != nil {
-			return 0, nil, nil, fmt.Errorf("error decoding body %v: %v", resp.Body, err)
+			return statusCode, nil, nil, fmt.Errorf("error decoding body %v: %v", resp.Body, err)
 		}
 	} else {
-		responseBody = []byte(resp.Body)
+		respBody = []byte(resp.Body)
 	}
 
-	log.Debugf("received response from function %v [code: %v, body: %v bytes]", functionName, resp.StatusCode, len(responseBody))
-	return resp.StatusCode, responseBody, resp.Headers, nil
+	log.Debugf("received response from function %v [code: %v, body: %v bytes]", functionName, statusCode, len(respBody))
+	return statusCode, &respBody, &resp.Headers, nil
 }
 
-func sendResponse(log *logrus.Entry, w http.ResponseWriter, responseHeaders map[string]string, statusCode int, body []byte, client string) (err error) {
-	for responseHeaderKey, responseHeaderValue := range responseHeaders {
+func sendResponse(log *logrus.Entry, w http.ResponseWriter, headers *map[string]string, statusCode int, body *[]byte, client string) (err error) {
+	for responseHeaderKey, responseHeaderValue := range *headers {
 		w.Header().Add(responseHeaderKey, responseHeaderValue)
 	}
 	w.WriteHeader(statusCode)
-	_, err = w.Write(body)
+	_, err = w.Write(*body)
 	if err != nil {
 		return fmt.Errorf("error writing response: %v", err)
 	}
 
-	log.Debugf("wrote response [code: %v, body %v bytes] to client %v", statusCode, len(body), client)
+	log.Debugf("wrote response [code: %v, body %v bytes] to client %v", statusCode, len(*body), client)
 	return nil
 }
